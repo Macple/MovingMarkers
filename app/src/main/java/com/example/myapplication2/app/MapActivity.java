@@ -145,12 +145,10 @@ public class MapActivity extends Activity implements View.OnClickListener {
             setCenterPointOfMap(new LatLng(53.4285, 14.5528));
             moveCamera(centerPoint);
 
-            //adding markers to map
-            addMarkerToMap(route.get(0), R.drawable.flag_red);
-            addMarkerToMap(route.get(1), R.drawable.flag_red);
-            addMarkerToMap(route.get(2), R.drawable.flag_red);
-            addMarkerToMap(route.get(3), R.drawable.flag_red);
-            addMarkerToMap(route.get(4), R.drawable.flag_red);
+            //adding as many markers as route points to the map
+            for (int i = 0; i < route.size(); i++) {
+                addMarkerToMap(route.get(i), R.drawable.flag_red);
+            }
 
         }catch (Exception e){
             Log.d("cos", "Exception", e);
