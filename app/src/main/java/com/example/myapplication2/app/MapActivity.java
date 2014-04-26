@@ -7,7 +7,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.util.Log;
-import android.view.View;
 import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 import android.widget.Toast;
@@ -29,26 +28,38 @@ import java.util.List;
 /**
  * Created by Maciej Plewko on 04/17/14.
  */
-public class MapActivity extends Activity implements View.OnClickListener {
+public class MapActivity extends Activity {
 
     private static final float DEGREES_OF_TILT = 30.0f;
     private static final int ANIMATION_DURATION_MS = 1000;
-    private final int RQS_GooglePlayServices = 1;
     public static float currentZoom = 16;
     private GoogleMap googleMap;
     private LatLng centerPoint;
     private List<LatLng> route = new ArrayList<LatLng>();
     private List<Marker> movingMarkers = new ArrayList<Marker>();
     private boolean mapCreated = false;
-    private Boolean isMarkerComingBack = false;
+    private Thread thread;
+    private Handler handler = new Handler();
+    private int loopCounter = 0;
+    //single move time [ms]
+    final private long duration = 2000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
-        findViewById(R.id.move_button).setOnClickListener(this);
         initializeRouteList();
         mapCreated = initializeMap();
+
+        //infinite thread loop
+        thread = new Thread() {
+            public void run() {
+                // do something here
+                Log.d("TAG", "local Thread sleeping");
+                handler.postDelayed(this, duration);
+                setMarkersAnimation();
+            }
+        };
     }
 
     @Override
@@ -62,33 +73,34 @@ public class MapActivity extends Activity implements View.OnClickListener {
                 finish();
             }
         }
+
+        handler.removeCallbacks(thread);
+        handler.postDelayed(thread, 0);
+        Log.d("TAG", "onResume");
     }
 
     @Override
-    public void onClick(View v) {
-        switch (v.getId()){
-            case R.id.move_button:{
-                setMarkersAnimation();
-            }
-            break;
-        }
+    public void onPause() {
+        super.onPause();
+
+        handler.removeCallbacks(thread);
+        Log.d("TAG", "onPause");
     }
 
     private void setMarkersAnimation() {
-        if (!isMarkerComingBack) {
-            for (int i = 0; i < movingMarkers.size(); i++) {
-                if (i < route.size() - 1) {
-                    animateMarker(movingMarkers.get(i), route.get(i + 1), false);
-                } else {
-                    animateMarker(movingMarkers.get(i), route.get(0), false);
-                }
-            }
-            isMarkerComingBack = true;
+        if (loopCounter < route.size() - 1) {
+            loopCounter++;
         } else {
-            for (int i = 0; i < movingMarkers.size(); i++) {
-                animateMarker(movingMarkers.get(i), route.get(i), false);
+            loopCounter = 0;
+        }
+
+        //going through all markers and animate them to the next point
+        for (int i = 0; i < movingMarkers.size(); i++) {
+            if ((i + loopCounter) <= route.size() - 1) {
+                animateMarker(movingMarkers.get(i), route.get(i + loopCounter), false);
+            } else {
+                animateMarker(movingMarkers.get(i), route.get(Math.abs(route.size() - i - loopCounter)), false);
             }
-            isMarkerComingBack = false;
         }
     }
 
@@ -110,6 +122,7 @@ public class MapActivity extends Activity implements View.OnClickListener {
         // Check Google Play Service Available
         try {
             if (status != ConnectionResult.SUCCESS) {
+                int RQS_GooglePlayServices = 1;
                 GooglePlayServicesUtil.getErrorDialog(status, this, RQS_GooglePlayServices).show();
             }
         } catch (Exception e) {
@@ -146,8 +159,8 @@ public class MapActivity extends Activity implements View.OnClickListener {
             moveCamera(centerPoint);
 
             //adding as many markers as route points to the map
-            for (int i = 0; i < route.size(); i++) {
-                addMarkerToMap(route.get(i), R.drawable.flag_red);
+            for (LatLng aRoute : route) {
+                addMarkerToMap(aRoute, R.drawable.flag_red);
             }
 
         }catch (Exception e){
@@ -183,11 +196,8 @@ public class MapActivity extends Activity implements View.OnClickListener {
     public void animateMarker(final Marker marker, final LatLng toPosition,
                               final boolean hideMarker) {
 
-        final Handler handler = new Handler();
         final long start = SystemClock.uptimeMillis();
         final LatLng startLatLng = marker.getPosition();
-        //single move time [ms]
-        final long duration = 2000;
 
         final Interpolator interpolator = new LinearInterpolator();
 
